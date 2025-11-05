@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>Giao bài tập</title>
+
+<style>
+  body {
+    font-family: "Poppins", sans-serif;
+    background: linear-gradient(135deg, #74ebd5, #acb6e5);
+    margin: 0;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding-top: 40px;
+  }
+  .container {
+    width: 90%;
+    max-width: 900px;
+    background: #fff;
+    border-radius: 20px;
+    padding: 25px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+  }
+  .toolbar {
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    margin-bottom: 15px;
+    gap: 10px;
+  }
+  button {
+    border: none;
+    background: #4e54c8;
+    color: white;
+    padding: 10px 20px;
+    border-radius: 10px;
+    font-size: 15px;
+    cursor: pointer;
+    transition: 0.3s;
+  }
+  button:hover { background: #6c63ff; transform: scale(1.05); }
+  select, input, textarea {
+    width: 100%;
+    margin-top: 5px;
+    padding: 10px;
+    border-radius: 8px;
+    border: 1px solid #ccc;
+    font-size: 15px;
+  }
+  .section { margin-bottom: 20px; }
+  .optionItem { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .preview {
+    background: #f3f4f6;
+    border-radius: 15px;
+    padding: 15px;
+  }
+  .studentView {
+    background: rgba(0,0,0,0.6);
+    position: fixed;
+    top:0;left:0;width:100%;height:100%;
+    display: none;
+    justify-content: center;
+    align-items: center;
+  }
+  .studentInner {
+    background: #fff;
+    border-radius: 15px;
+    padding: 20px;
+    width: 80%;
+    max-width: 600px;
+    max-height: 80vh;
+    overflow-y: auto;
+  }
+</style>
+</head>
+<body>
+  <div class="container">
+    <div class="toolbar">
+      <button id="newBtn">Tạo bài mới</button>
+      <button id="previewBtn">Xem trước</button>
+      <button id="sendBtn">Giao bài</button>
+      <button id="seeStudentBtn">Xem màn hình học sinh</button>
+      <button id="cancelBtn">Huỷ bài</button>
+    </div>
+
+    <div class="section">
+      <label><b>Câu hỏi:</b></label>
+      <textarea id="question" rows="3" placeholder="Nhập câu hỏi..."></textarea>
+    </div>
+
+    <div class="section">
+      <label><b>Loại câu hỏi:</b></label>
+      <select id="type">
+        <option value="tracnghiem">Trắc nghiệm (1 đáp án)</option>
+        <option value="chonnhieu">Chọn nhiều đáp án</option>
+        <option value="dienvao">Điền vào chỗ trống</option>
+        <option value="ngan">Trả lời ngắn</option>
+        <option value="doanvan">Đoạn văn</option>
+      </select>
+    </div>
+
+    <div id="answerArea"></div>
+
+    <div class="preview">
+      <h3>Xem trước (giống học sinh):</h3>
+      <div id="previewArea" style="padding:10px;">Chưa có nội dung</div>
+    </div>
+  </div>
+
+  <!-- Khung xem màn hình học sinh -->
+  <div class="studentView" id="studentOverlay">
+    <div class="studentInner">
+      <button style="float:right;background:#ff4b5c;" id="closeOverlay">Đóng</button>
+      <h3>Màn hình học sinh</h3>
+      <div id="studentScreen">Chưa có dữ liệu</div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { db } from "../firebase-config.js";
+    import { ref, set, remove, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+    const qEl = document.getElementById("question");
+    const tEl = document.getElementById("type");
+    const ansEl = document.getElementById("answerArea");
+    const prevEl = document.getElementById("previewArea");
+    const overlay = document.getElementById("studentOverlay");
+    const studentScreen = document.getElementById("studentScreen");
+
+    const btnNew = document.getElementById("newBtn");
+    const btnPreview = document.getElementById("previewBtn");
+    const btnSend = document.getElementById("sendBtn");
+    const btnSeeStudent = document.getElementById("seeStudentBtn");
+    const btnCancel = document.getElementById("cancelBtn");
+    const btnClose = document.getElementById("closeOverlay");
+
+    // --- Render phần nhập đáp án ---
+    function renderAnswerInputs() {
+      let html = "";
+      if (["tracnghiem", "chonnhieu"].includes(tEl.value)) {
+        html += `<div id="optionsWrap"><button id="addOptBtn" type="button">+ Thêm lựa chọn</button><div id="optList"></div></div>`;
+      } else {
+        html += `<textarea id="correctText" rows="2" placeholder="Đáp án đúng (nếu có)"></textarea>`;
+      }
+      ansEl.innerHTML = html;
+
+      if (["tracnghiem", "chonnhieu"].includes(tEl.value)) {
+        const addOpt = document.getElementById("addOptBtn");
+        const optList = document.getElementById("optList");
+        addOpt.onclick = () => {
+          const isMulti = tEl.value === "chonnhieu";
+          const div = document.createElement("div");
+          div.className = "optionItem";
+          div.innerHTML = `
+            <input type="${isMulti ? "checkbox" : "radio"}" name="correctOpt" style="width: fit-content;">
+            <input type="text" placeholder="Nội dung lựa chọn" class="optText" style="margin-left: 3px;">
+          `;
+          optList.appendChild(div);
+        };
+      }
+    }
+    tEl.onchange = renderAnswerInputs;
+    renderAnswerInputs();
+
+    // --- Xem trước ---
+    function updatePreview() {
+      const q = qEl.value;
+      const type = tEl.value;
+      let html = `<h4>${q}</h4>`;
+      if (["tracnghiem", "chonnhieu"].includes(type)) {
+        const opts = document.querySelectorAll(".optText");
+        opts.forEach(o => html += `<div><input type="${type==='tracnghiem'?'radio':'checkbox'}">${o.value}</div>`);
+      } else {
+        html += `<textarea placeholder="Câu trả lời học sinh..."></textarea>`;
+      }
+      prevEl.innerHTML = html;
+    }
+
+    qEl.oninput = updatePreview;
+    ansEl.oninput = updatePreview;
+
+    btnPreview.onclick = updatePreview;
+
+    // --- Giao bài ---
+    btnSend.onclick = () => {
+      const q = qEl.value.trim();
+      if (!q) return alert("⚠️ Bạn chưa nhập câu hỏi!");
+      const type = tEl.value;
+      const data = { question: q, type, options: [], correct: [] };
+      if (["tracnghiem", "chonnhieu"].includes(type)) {
+        const opts = document.querySelectorAll(".optText");
+        const checks = document.querySelectorAll("input[name='correctOpt']");
+        opts.forEach((o,i)=>{
+          data.options.push(o.value);
+          if (checks[i].checked) data.correct.push(i);
+        });
+      } else {
+        data.correct = [document.getElementById("correctText")?.value || ""];
+      }
+      set(ref(db,"baiHienTai"), data);
+      alert("✅ Đã giao bài cho học sinh!");
+    };
+
+    // --- Huỷ bài ---
+    btnCancel.onclick = ()=>{
+      remove(ref(db,"baiHienTai"));
+      alert("🛑 Đã huỷ bài hiện tại!");
+    };
+
+    // --- Tạo mới ---
+    btnNew.onclick = ()=>location.reload();
+
+    // --- Xem màn hình học sinh ---
+    btnSeeStudent.onclick = ()=>overlay.style.display="flex";
+    btnClose.onclick = ()=>overlay.style.display="none";
+
+    onValue(ref(db,"baiHienTai"), snap=>{
+      const data = snap.val();
+      if (!data) {
+        studentScreen.innerHTML = "<p>Chưa có bài nào được giao.</p>";
+        return;
+      }
+      let html = `<h4>${data.question}</h4>`;
+      if (["tracnghiem","chonnhieu"].includes(data.type)) {
+        data.options.forEach((o,i)=>{
+          html += `<div><input type="${data.type==='tracnghiem'?'radio':'checkbox'}"> ${o}</div>`;
+        });
+      } else {
+        html += `<textarea rows="2" placeholder="Câu trả lời học sinh..."></textarea>`;
+      }
+      studentScreen.innerHTML = html;
+    });
+  </script>
+</body>
+</html>
