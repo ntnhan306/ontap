@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>Làm bài tập</title>
+<style>
+  body {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    min-height: 100vh;
+    margin: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-family: "Segoe UI", sans-serif;
+  }
+
+  .box {
+    display: flex;
+    flex-direction: column;
+    background: #fff;
+    padding: 25px 35px;
+    border-radius: 25px;
+    width: 80%;
+    max-width: 650px;
+    text-align: justify;
+    box-shadow: 0 15px 30px rgba(0,0,0,0.2);
+    word-wrap: break-word;
+  }
+
+  h2 {
+    width: 100%;
+    color: #333;
+    margin-bottom: 20px;
+    font-size: 22px;
+    line-height: 1.5;
+    word-break: break-word;
+    white-space: pre-wrap; /* xuống dòng tự nhiên */
+  }
+
+  .option {
+    margin: 10px 0;
+    text-align: left;
+    display: flex;
+    align-items: flex-start; /* ô chọn nằm giữa theo chiều dọc */
+    gap: 10px;
+    line-height: 1.4;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+    padding: 8px 12px;
+  }
+
+  .option input[type="radio"],
+  .option input[type="checkbox"] {
+    flex-shrink: 0;
+    margin-top: 2px; /* căn giữa checkbox */
+    accent-color: #43cea2; /* màu xanh đẹp */
+    transform: scale(1.2);
+  }
+
+  .option label {
+    line-height: 1.25;
+    max-width: 100%;
+    white-space: pre-wrap;
+    overflow-wrap: break-word;
+    flex: 1;
+    cursor: pointer;
+  }
+  .option:hover {
+    background: #f0f0f0;
+  }
+
+  button {
+    background: #43cea2;
+    border: none;
+    padding: 10px 25px;
+    color: white;
+    border-radius: 15px;
+    font-size: 16px;
+    cursor: pointer;
+    transition: 0.3s;
+    margin-top: 15px;
+  }
+
+  button:hover {
+    background: #38ef7d;
+    transform: translateY(-1px);
+  }
+
+  #overlay {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(0,0,0,0.6);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    animation: fadein 0.4s ease forwards;
+    z-index: 1000;
+  }
+
+  @keyframes fadein {
+    from { opacity: 0; transform: scale(1.5) translateY(-10px); }
+    to { opacity: 1; transform: scale(1) translateY(0);}
+  }
+
+  .msg {
+    background: white;
+    padding: 30px 50px;
+    border-radius: 20px;
+    font-size: 22px;
+    font-weight: 600;
+    text-align: center;
+    box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+  }
+
+  .correct { color: #2ecc71; }
+  .wrong { color: #e74c3c; }
+</style>
+</head>
+<body>
+  <div class="box">
+    <h2 id="question">Đang chờ giáo viên giao bài...</h2>
+    <div id="answers"></div>
+    <button id="submitBtn" style="display:none;">Nộp bài</button>
+  </div>
+  <div id="overlay"><div class="msg"></div></div>
+
+  <audio id="sound-correct" src="https://cdn.pixabay.com/audio/2025/04/23/audio_5a1eca1fdf.mp3"></audio>
+  <audio id="sound-wrong" src="https://cdn.pixabay.com/audio/2022/03/10/audio_8b0fae46ef.mp3"></audio>
+
+  <script type="module">
+    import { db } from "../firebase-config.js";
+    import { ref, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+    const qRef = ref(db, "baiHienTai");
+    const qEl = document.getElementById("question");
+    const ansDiv = document.getElementById("answers");
+    const submitBtn = document.getElementById("submitBtn");
+    const overlay = document.getElementById("overlay");
+    const msgBox = overlay.querySelector(".msg");
+
+    const sOK = document.getElementById("sound-correct");
+    const sNO = document.getElementById("sound-wrong");
+
+    let current = null;
+
+    onValue(qRef, snapshot=>{
+      const data = snapshot.val();
+      ansDiv.innerHTML = "";
+      if (!data) {
+        qEl.textContent = "Giáo viên chưa giao bài.";
+        submitBtn.style.display = "none";
+        return;
+      }
+      qEl.textContent = data.question;
+      if (data.type === "tracnghiem" || data.type === "chonnhieu") {
+        data.options.forEach((o,i)=>{
+          ansDiv.innerHTML += `
+            <div class="option">
+              <label style="white-space: pre;overflow-wrap: break-word;"><input type="${data.type==='tracnghiem'?'radio':'checkbox'}" name="ans" value="${i}"> ${o}</label>
+            </div>`;
+        });
+        submitBtn.disable = false;
+      } else {
+        ansDiv.innerHTML = `<textarea id="textAns" rows="3" style="width:100%; max-width:100%; min-width:100%;"></textarea>`;
+        submitBtn.disable = false;
+      }
+      submitBtn.style.display = "inline-block";
+      current = data;
+    });
+
+    submitBtn.onclick = ()=>{
+      if (!current) return;
+      let correct = false;
+      if (current.type === "tracnghiem" || current.type === "chonnhieu") {
+        const selected = [...document.querySelectorAll("input[name='ans']:checked")].map(i=>parseInt(i.value));
+        correct = JSON.stringify(selected.sort()) === JSON.stringify(current.correct.sort());
+      } else {
+        const val = document.getElementById("textAns").value.trim().toLowerCase();
+        correct = val === current.correct[0]?.toLowerCase();
+      }
+      submitBtn.disable = true;
+      overlay.style.display = "flex";
+      if (correct) {
+        msgBox.innerHTML = "🎉 Chúc mừng!<br>Bạn làm đúng rồi!";
+        msgBox.className = "msg correct";
+        sOK.play();
+      } else {
+        msgBox.innerHTML = "😢 Oh no!<br>Bạn làm sai rồi!";
+        msgBox.className = "msg wrong";
+        sNO.play();
+      }
+      setTimeout(()=>{overlay.style.display="none";},3000);
+    };
+  </script>
+</body>
+</html>
