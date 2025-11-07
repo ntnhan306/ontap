@@ -54,6 +54,30 @@
     background: #f3f4f6;
     border-radius: 15px;
     padding: 15px;
+    margin-top: 20px;
+  }
+  .preview-options {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .preview-options > div {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 5px;
+    padding: 10px 4px;
+  }
+  .preview-options > div:hover {
+    background: #e5e7eb;
+    border-radius: 8px;
+  }
+  .preview-options input[type="radio"],
+  .preview-options input[type="checkbox"] {
+    width: fit-content;
+    height: fit-content;
+    margin: 0;
+    padding: 0;
   }
   .studentView {
     background: rgba(0,0,0,0.6);
@@ -103,7 +127,7 @@
     <div id="answerArea"></div>
 
     <div class="preview">
-      <h3>Xem trước (giống học sinh)</h3>
+      <h3>Xem trước</h3>
       <div id="previewArea" style="padding:10px;">Chưa có nội dung</div>
     </div>
   </div>
@@ -155,6 +179,7 @@
           div.innerHTML = `
             <input type="${isMulti ? "checkbox" : "radio"}" name="correctOpt" style="width: fit-content;">
             <input type="text" placeholder="Nội dung lựa chọn" class="optText" style="margin-left: 3px;">
+            <button type="button" class="deleteBtn" onclick="this.parentElement.remove()" style="margin-left: auto; background: #ef4444; color: white; border: none; border-radius: 4px; padding: 4px 8px; cursor: pointer;">Xóa</button>
           `;
           optList.appendChild(div);
         };
@@ -169,8 +194,10 @@
       const type = tEl.value;
       let html = `<h4>${q}</h4>`;
       if (["tracnghiem", "chonnhieu"].includes(type)) {
+        html += `<div class="preview-options">`;
         const opts = document.querySelectorAll(".optText");
         opts.forEach(o => html += `<div><input type="${type==='tracnghiem'?'radio':'checkbox'}">${o.value}</div>`);
+        html += `</div>`;
       } else {
         html += `<textarea placeholder="Câu trả lời học sinh..."></textarea>`;
       }
@@ -199,7 +226,7 @@
         data.correct = [document.getElementById("correctText")?.value || ""];
       }
       set(ref(db,"baiHienTai"), data);
-      alert("✅ Đã giao bài cho học sinh!");
+      // alert("✅ Đã giao bài cho học sinh!");
     };
 
     // --- Huỷ bài ---
