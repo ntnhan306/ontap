@@ -50,11 +50,55 @@
   }
   .section { margin-bottom: 20px; }
   .optionItem { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
-  .preview {
+
+  .preview-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.3);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+  .preview-overlay.show {
+    opacity: 1;
+  }
+  .preview-modal {
     background: #f3f4f6;
     border-radius: 15px;
-    padding: 15px;
-    margin-top: 20px;
+    padding: 20px;
+    max-width: 500px;
+    width: 90%;
+    max-height: 80vh;
+    overflow-y: auto;
+    position: relative;
+    transform: scale(0.7);
+    transition: transform 0.3s ease;
+  }
+  .preview-overlay.show .preview-modal {
+    transform: scale(1);
+  }
+  .preview-close {
+    position: absolute;
+    top: 10px;
+    right: 15px;
+    background: #ef4444;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 40px !important;
+    height: 40px !important;
+    cursor: pointer;
+    font-size: 30px;
+    line-height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
   .preview-options {
     display: flex;
@@ -66,11 +110,7 @@
     align-items: center;
     justify-content: flex-start;
     gap: 5px;
-    padding: 10px 4px;
-  }
-  .preview-options > div:hover {
-    background: #e5e7eb;
-    border-radius: 8px;
+    padding: 8px 0;
   }
   .preview-options input[type="radio"],
   .preview-options input[type="checkbox"] {
@@ -99,6 +139,15 @@
 </style>
 </head>
 <body>
+  <!-- Preview Overlay -->
+  <div id="previewOverlay" class="preview-overlay">
+    <div class="preview-modal">
+      <button class="preview-close" onclick="closePreview()">&times;</button>
+      <h3>Xem trước</h3>
+      <div id="previewModalContent">Chưa có nội dung</div>
+    </div>
+  </div>
+
   <div class="container">
     <div class="toolbar">
       <button id="newBtn">Tạo bài mới</button>
@@ -125,11 +174,6 @@
     </div>
 
     <div id="answerArea"></div>
-
-    <div class="preview">
-      <h3>Xem trước</h3>
-      <div id="previewArea" style="padding:10px;">Chưa có nội dung</div>
-    </div>
   </div>
 
   <!-- Khung xem màn hình học sinh -->
@@ -207,7 +251,48 @@
     qEl.oninput = updatePreview;
     ansEl.oninput = updatePreview;
 
-    btnPreview.onclick = updatePreview;
+    btnPreview.onclick = showPreviewModal;
+
+    function showPreviewModal() {
+      const q = qEl.value.trim();
+      const type = tEl.value;
+      
+      if (!q) {
+        document.getElementById('previewModalContent').innerHTML = 'Chưa có nội dung';
+      } else {
+        let html = `<h4>${q}</h4>`;
+        if (["tracnghiem", "chonnhieu"].includes(type)) {
+          html += `<div class="preview-options">`;
+          const opts = document.querySelectorAll(".optText");
+          if (opts.length === 0) {
+            html += `<p>Chưa có lựa chọn nào</p>`;
+          } else {
+            opts.forEach(o => html += `<div><input type="${type==='tracnghiem'?'radio':'checkbox'}">${o.value || 'Lựa chọn trống'}</div>`);
+          }
+          html += `</div>`;
+        } else {
+          html += `<textarea placeholder="Câu trả lời học sinh..."></textarea>`;
+        }
+        document.getElementById('previewModalContent').innerHTML = html;
+      }
+      
+      const overlay = document.getElementById('previewOverlay');
+      overlay.style.display = 'flex';
+      setTimeout(() => overlay.classList.add('show'), 10);
+    }
+
+    window.closePreview = function() {
+      const overlay = document.getElementById('previewOverlay');
+      overlay.classList.remove('show');
+      setTimeout(() => overlay.style.display = 'none', 300);
+    }
+
+    // Click outside to close
+    document.getElementById('previewOverlay').onclick = function(e) {
+      if (e.target === this) {
+        closePreview();
+      }
+    }
 
     // --- Giao bài ---
     btnSend.onclick = () => {
